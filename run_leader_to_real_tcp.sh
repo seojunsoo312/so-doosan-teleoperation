@@ -7,6 +7,7 @@ source "${SCRIPT_DIR}/env.sh"
 
 echo "[run_leader_to_real_tcp] 팔: move_joint | 그리퍼: /gripper_service/set_position (TCP)"
 exec python3 "${SCRIPT_DIR}/so_to_real_dsr_teleop.py" --ros-args \
+  -p mapping_preset:=neutral \
   -p gripper_mode:=tcp \
   -p gripper_service_ns:=/gripper_service \
   -p gripper_position_max:=1150 \

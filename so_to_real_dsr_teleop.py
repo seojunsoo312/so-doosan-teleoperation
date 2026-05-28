@@ -79,6 +79,27 @@ class SoToRealDsrTeleop(Node):
             self.declare_parameter("gripper_auto_init", True).value
         )
 
+        # SO leader → Doosan arm mapping (see _apply_arm_mapping_preset)
+        self.mapping_preset = str(
+            self.declare_parameter("mapping_preset", "neutral").value
+        ).lower()
+        self.rot_sign = float(self.declare_parameter("rot_sign", -1.0).value)
+        self.pitch_sign = float(self.declare_parameter("pitch_sign", -1.0).value)
+        self.elbow_sign = float(self.declare_parameter("elbow_sign", -1.0).value)
+        self.wrist_pitch_sign = float(
+            self.declare_parameter("wrist_pitch_sign", -1.0).value
+        )
+        self.wrist_roll_sign = float(
+            self.declare_parameter("wrist_roll_sign", 1.0).value
+        )
+        self.rot_offset_rad = float(
+            self.declare_parameter("rot_offset_rad", 0.0).value
+        )
+        self.elbow_offset_rad = float(
+            self.declare_parameter("elbow_offset_rad", 0.0).value
+        )
+        self._apply_arm_mapping_preset()
+
         self._state_lock = threading.Lock()
         self._latest_joints_deg = None
         self._latest_jaw_rad = None
@@ -134,24 +155,49 @@ class SoToRealDsrTeleop(Node):
             f"SO → Doosan teleop | period={self.command_period}s "
             f"tolerance={self.joint_tolerance_deg}° vel={self.move_vel}% "
             f"sync={'ASYNC' if self.sync_type else 'SYNC'} "
-            f"gripper={self.gripper_mode}"
+            f"gripper={self.gripper_mode} "
+            f"mapping={self.mapping_preset}"
         )
+        self.get_logger().info(
+            f"  arm signs rot,pitch,elbow,w_pitch,w_roll="
+            f"{self.rot_sign},{self.pitch_sign},{self.elbow_sign},"
+            f"{self.wrist_pitch_sign},{self.wrist_roll_sign} "
+            f"offsets rot,elbow(rad)={self.rot_offset_rad:.4f},{self.elbow_offset_rad:.4f}"
+        )
+
+    def _apply_arm_mapping_preset(self) -> None:
+        """neutral: bluephysi01 부호만 (오프셋 0, 리더 0에서 90° 안 남). bluephysi01: -π/2 on rot/elbow."""
+        if self.mapping_preset == "bluephysi01":
+            self.rot_sign = -1.0
+            self.pitch_sign = -1.0
+            self.elbow_sign = -1.0
+            self.wrist_pitch_sign = -1.0
+            self.wrist_roll_sign = 1.0
+            self.rot_offset_rad = -math.pi / 2
+            self.elbow_offset_rad = -math.pi / 2
+        elif self.mapping_preset not in ("", "neutral", "default"):
+            raise ValueError(
+                f"Unknown mapping_preset={self.mapping_preset!r} "
+                "(use neutral or bluephysi01)"
+            )
+
+    def _leader_pos_to_doosan_arm_rad(self, pos: dict) -> list:
+        """SO JointState dict → Doosan joint_1..6 rad (joint_4 fixed 0). bluephysi01 동일 부호."""
+        rot = self.rot_sign * pos["Rotation"]
+        pitch = self.pitch_sign * pos["Pitch"]
+        elbow = self.elbow_sign * pos["Elbow"]
+        w_pitch = self.wrist_pitch_sign * pos["Wrist_Pitch"]
+        w_roll = self.wrist_roll_sign * pos["Wrist_Roll"]
+        rot += self.rot_offset_rad
+        elbow += self.elbow_offset_rad
+        return [rot, pitch, elbow, 0.0, w_pitch, w_roll]
 
     def cb(self, msg):
         pos = {n: p for n, p in zip(msg.name, msg.position)}
-        rot = -pos["Rotation"]
-        pitch = -pos["Pitch"]
-        elbow = -pos["Elbow"]
-        w_pitch = -pos["Wrist_Pitch"]
-        w_roll = pos["Wrist_Roll"]
         jaw = pos["Jaw"]
 
-        rot += -math.pi / 2
-        elbow += -math.pi / 2
-
         joints_deg = [
-            math.degrees(v)
-            for v in [rot, pitch, elbow, 0.0, w_pitch, w_roll]
+            math.degrees(v) for v in self._leader_pos_to_doosan_arm_rad(pos)
         ]
 
         now = time.time()
