@@ -49,6 +49,16 @@ source ~/so-doosan-teleoperation/env.sh
 | (없음) | joint_4 = 0 고정 |
 | Jaw | RH-P12 그리퍼 (별도 경로) |
 
+기본 `mapping_preset:=neutral` (실기·RViz 검증):
+
+- joint_1 = −Rotation  
+- joint_2 = +Pitch  
+- joint_3 = +Elbow + 90°  
+- joint_5 = +Wrist_Pitch  
+- joint_6 = −Wrist_Roll  
+
+선택: `offset_90` — rot·elbow 둘 다 −90° 오프셋 (레거시 teleop 호환).
+
 리더 Jaw 열림 ↔ 두산 그리퍼 닫힘 (방향 반전 매핑 적용됨).
 
 ## 라이선스

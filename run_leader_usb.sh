@@ -8,8 +8,9 @@ USB_PORT="${USB_PORT:-/dev/ttyACM0}"
 
 source /opt/ros/humble/setup.bash
 
-# 다른 PC(bluephysi01)에서 빌드된 install 이면 재빌드 필요
-if grep -q bluephysi01 "${BRIDGE}/install/setup.bash" 2>/dev/null; then
+# 다른 PC 경로로 빌드된 install 이면 재빌드 필요
+if grep -qE '/home/[^/]+/' "${BRIDGE}/install/setup.bash" 2>/dev/null \
+  && ! grep -q "${HOME}" "${BRIDGE}/install/setup.bash" 2>/dev/null; then
   echo "[run_leader_usb] bridge 재빌드 (이전 머신 경로 제거)..."
   cd "${BRIDGE}"
   rm -rf build install log

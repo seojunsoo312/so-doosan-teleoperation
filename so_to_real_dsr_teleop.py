@@ -79,18 +79,18 @@ class SoToRealDsrTeleop(Node):
             self.declare_parameter("gripper_auto_init", True).value
         )
 
-        # SO leader → Doosan arm mapping (see _apply_arm_mapping_preset)
+        # SO leader → Doosan arm mapping (기본 neutral: joint_3만 +90°)
         self.mapping_preset = str(
             self.declare_parameter("mapping_preset", "neutral").value
         ).lower()
         self.rot_sign = float(self.declare_parameter("rot_sign", -1.0).value)
-        self.pitch_sign = float(self.declare_parameter("pitch_sign", -1.0).value)
-        self.elbow_sign = float(self.declare_parameter("elbow_sign", -1.0).value)
+        self.pitch_sign = float(self.declare_parameter("pitch_sign", 1.0).value)
+        self.elbow_sign = float(self.declare_parameter("elbow_sign", 1.0).value)
         self.wrist_pitch_sign = float(
-            self.declare_parameter("wrist_pitch_sign", -1.0).value
+            self.declare_parameter("wrist_pitch_sign", 1.0).value
         )
         self.wrist_roll_sign = float(
-            self.declare_parameter("wrist_roll_sign", 1.0).value
+            self.declare_parameter("wrist_roll_sign", -1.0).value
         )
         self.rot_offset_rad = float(
             self.declare_parameter("rot_offset_rad", 0.0).value
@@ -166,19 +166,27 @@ class SoToRealDsrTeleop(Node):
         )
 
     def _apply_arm_mapping_preset(self) -> None:
-        """neutral: bluephysi01 부호만 (오프셋 0, 리더 0에서 90° 안 남). bluephysi01: -π/2 on rot/elbow."""
-        if self.mapping_preset == "bluephysi01":
+        """neutral: 부호 +, joint_3(Elbow)만 +π/2. offset_90: rot·elbow 둘 다 −π/2."""
+        if self.mapping_preset in ("", "neutral", "default"):
+            self.rot_sign = -1.0  # joint_1
+            self.pitch_sign = 1.0
+            self.elbow_sign = 1.0
+            self.wrist_pitch_sign = 1.0
+            self.wrist_roll_sign = -1.0  # joint_6
+            self.rot_offset_rad = 0.0
+            self.elbow_offset_rad = math.pi / 2  # joint_3 +90°
+        elif self.mapping_preset in ("bluephysi01", "offset_90"):
             self.rot_sign = -1.0
-            self.pitch_sign = -1.0
-            self.elbow_sign = -1.0
-            self.wrist_pitch_sign = -1.0
-            self.wrist_roll_sign = 1.0
+            self.pitch_sign = 1.0
+            self.elbow_sign = 1.0
+            self.wrist_pitch_sign = 1.0
+            self.wrist_roll_sign = -1.0
             self.rot_offset_rad = -math.pi / 2
             self.elbow_offset_rad = -math.pi / 2
-        elif self.mapping_preset not in ("", "neutral", "default"):
+        else:
             raise ValueError(
                 f"Unknown mapping_preset={self.mapping_preset!r} "
-                "(use neutral or bluephysi01)"
+                "(use neutral or offset_90)"
             )
 
     def _leader_pos_to_doosan_arm_rad(self, pos: dict) -> list:
